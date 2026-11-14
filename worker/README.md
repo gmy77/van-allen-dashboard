@@ -52,7 +52,7 @@ wrangler d1 create van-allen-history
 ```
 
 Il comando stampa un `database_id`: va copiato in `wrangler.toml` al posto di
-`DA-COMPILARE-DOPO-wrangler-d1-create`. Poi:
+quello presente (che è del database dell'autore). Poi:
 
 ```powershell
 wrangler d1 execute van-allen-history --remote --file schema.sql
@@ -65,13 +65,14 @@ wrangler deploy
 
 ## Collegare l'app
 
-Scrivi l'indirizzo, da solo su una riga, nel file
+Scrivi l'indirizzo, da solo su una riga, in un file `remote.txt` (le righe che
+iniziano con `#` sono commenti). L'app lo cerca, nell'ordine:
 
-```
-%LOCALAPPDATA%\van-allen-dashboard\remote.txt
-```
+1. nella variabile d'ambiente `VANALLEN_REMOTE`;
+2. accanto all'eseguibile (`dist\remote.txt`);
+3. accanto allo storico (`%LOCALAPPDATA%\van-allen-dashboard\remote.txt`).
 
-oppure imposta la variabile d'ambiente `VANALLEN_REMOTE`. Al prossimo avvio la
+Al prossimo avvio la
 scheda **Sorgenti** mostra la riga «Storico remoto» in verde con i punti
 ricevuti. È accettato solo `https://` (o `http://127.0.0.1` per le prove).
 

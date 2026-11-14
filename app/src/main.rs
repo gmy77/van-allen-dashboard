@@ -90,11 +90,16 @@ pub(crate) struct Remote {
 }
 
 impl Remote {
-    /// Legge l'indirizzo da `VANALLEN_REMOTE` o da `remote.txt` accanto allo
-    /// storico; se c'è, avvia il thread che scarica.
+    /// Legge l'indirizzo, nell'ordine, da `VANALLEN_REMOTE`, da `remote.txt`
+    /// accanto all'eseguibile e da `remote.txt` accanto allo storico; se c'è,
+    /// avvia il thread che scarica.
     fn start() -> Self {
+        let beside_exe = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.join("remote.txt")));
         let url = std::env::var("VANALLEN_REMOTE")
             .ok()
+            .or_else(|| beside_exe.and_then(|p| std::fs::read_to_string(p).ok()))
             .or_else(|| std::fs::read_to_string(History::remote_file()).ok())
             .and_then(|raw| vanallen_core::remote::clean_url(&raw));
         let rx = url.clone().map(spawn_remote);

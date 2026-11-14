@@ -1,0 +1,16 @@
+[package]
+name = "vanallen"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Dashboard per il monitoraggio live delle fasce di Van Allen"
+
+[dependencies]
+eframe = { version = "=0.31.1", default-features = false, features = ["glow", "default_fonts"] }
+png = "0.18.1"
+vanallen-core = { path = "../core" }
+
+[[bin]]
+name = "vanallen"
+path = "src/main.rs"
+

@@ -124,6 +124,13 @@ Il listener vive **dentro il processo dell'app**: non esiste un servizio separat
 chiudendo la finestra la porta si libera da sola. Ascolta solo su `127.0.0.1`, non è
 raggiungibile dalla rete. Porta diversa: `set VANALLEN_PORT=9000` prima di avviare.
 
+### Storico continuo (facoltativo)
+
+Di suo l'app registra lo storico solo mentre è aperta. La cartella [`worker/`](worker/)
+contiene un Worker Cloudflare che salva le stesse misure ogni 5 minuti, 24 ore su 24;
+se l'app ne conosce l'indirizzo scarica i punti mancanti e riempie i buchi. Istruzioni
+in [`worker/README.md`](worker/README.md).
+
 ### Aiuti "?"
 
 Ogni KPI e ogni riquadro, in tutte le schede, ha un pallino `?` in alto a destra: apre
@@ -138,6 +145,7 @@ Tutte facoltative.
 | Variabile | Effetto |
 |---|---|
 | `VANALLEN_PORT` | porta del server locale (predefinita 8787) |
+| `VANALLEN_REMOTE` | indirizzo del Worker dello storico (in alternativa al file `remote.txt`) |
 | `VANALLEN_PRELOAD` | scarica i dati prima di aprire la finestra |
 | `VANALLEN_TAB` | scheda iniziale: `fasce`, `vento`, `magnetosfera`, `storico`, `sorgenti` |
 | `VANALLEN_HELP` | apre subito l'aiuto numero N |
@@ -147,6 +155,7 @@ Tutte facoltative.
 
 ```powershell
 cargo test --workspace                   # fisica, parser, tempo, storico, testi di aiuto
+node worker\test.mjs                     # Worker dello storico, senza wrangler
 cargo test -p vanallen-core --test live -- --ignored   # controlla i servizi reali
 ```
 
@@ -158,6 +167,7 @@ core/   vanallen-core: nessuna dipendenza grafica
   physics.rs   magnetopausa, plasmapausa, profilo delle fasce, spettro, soglie
   snapshot.rs  aggiornamento in parallelo + allerte
   history.rs   storico su %LOCALAPPDATA%\van-allen-dashboard\history.json
+  remote.rs    storico remoto: dalle misure del Worker ai punti dello storico
   time.rs      date UTC senza dipendenze
 app/    vanallen: interfaccia egui, tema WinUI 3
   theme.rs     colori Fluent, Segoe UI, card
@@ -167,6 +177,7 @@ app/    vanallen: interfaccia egui, tema WinUI 3
   help.rs      testi degli aiuti "?"
   server.rs    server HTTP locale (127.0.0.1:8787)
   main.rs      avvio, thread di rete, barra delle schede, scheda Fasce
+worker/ Worker Cloudflare (cron + D1) per lo storico 24 ore su 24
 tools/  make-icon.ps1 (icona .ico), create-shortcut.ps1 (collegamento desktop)
 launch.bat  avvia l'app e non lascia nulla in esecuzione alla chiusura
 ```
@@ -201,8 +212,8 @@ dell'aspetto con controlli diversi. Chi ha bisogno della semantica esatta di Win
 
 ## Limiti noti
 
-* Lo storico registra un punto solo mentre l'app è aperta: i periodi a app chiusa
-  restano vuoti.
+* Senza il Worker dello storico, l'app registra un punto solo mentre è aperta: i
+  periodi a app chiusa restano vuoti.
 * Il flusso a L = 6.6 arriva da un solo satellite (GOES-19 lato primario): un guasto
   o un passaggio in ombra buca la serie.
 * La forma radiale è un modello: non aspettarti di vedere "la" fascia, ma una stima

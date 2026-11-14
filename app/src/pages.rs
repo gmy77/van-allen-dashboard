@@ -732,10 +732,15 @@ impl VanAllenApp {
         };
         let summary = match (points.first(), points.last()) {
             (Some(a), Some(b)) => format!(
-                "{} punti dal {} al {} UTC · un punto a ogni aggiornamento (5 min) mentre l'app è aperta",
+                "{} punti dal {} al {} UTC · un punto ogni 5 minuti{}",
                 points.len(),
                 fmt_short(a.t),
-                fmt_short(b.t)
+                fmt_short(b.t),
+                if self.remote.url.is_some() {
+                    ", anche ad app chiusa (storico remoto)"
+                } else {
+                    " mentre l'app è aperta"
+                }
             ),
             _ => "nessun punto in questo periodo".to_string(),
         };
@@ -1263,10 +1268,29 @@ impl VanAllenApp {
         };
         let hist_n = self.history.points.len();
         let hist_from = self.history.points.first().map(|p| fmt_short(p.t));
+        let (remote_text, remote_color) = match (&self.remote.url, &self.remote.error, self.remote.last_ok) {
+            (None, _, _) => (
+                "Storico remoto: non configurato — registra solo mentre l'app è aperta (vedi worker/README.md)".to_string(),
+                theme::FAINT,
+            ),
+            (Some(url), Some(e), _) => {
+                let short: String = e.chars().take(110).collect();
+                (format!("Storico remoto: {url} — errore: {short}"), theme::BAD)
+            }
+            (Some(url), None, Some((t, n))) => (
+                format!(
+                    "Storico remoto: {url} — {n} punti ricevuti alle {} UTC, {} aggiunti in questa sessione",
+                    fmt_short(t),
+                    self.remote.added
+                ),
+                theme::GOOD,
+            ),
+            (Some(url), None, None) => (format!("Storico remoto: {url} — in scaricamento…"), theme::SUB),
+        };
         if let Some(t) = card(
             ui,
             full,
-            214.0,
+            236.0,
             "Server locale e file",
             "attivi solo mentre l'app è aperta",
             Topic::Server,
@@ -1310,6 +1334,7 @@ impl VanAllenApp {
                         }
                         ui.add_space(2.0);
                         ui.label(f.body(format!("Storico: {hist_path}")));
+                        ui.label(RichText::new(&remote_text).size(11.5).color(remote_color));
                         ui.label(f.hint(match hist_from {
                             Some(from) => format!(
                                 "{hist_n} punti registrati dal {from} UTC · aggiornamento automatico ogni {} minuti · versione {}",

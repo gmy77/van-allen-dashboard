@@ -401,7 +401,8 @@ logaritmica. La linea tratteggiata è la soglia di 1000 pfu.\n\n\
 A differenza del grafico delle 24 ore, qui si vedono giorni e settimane: \
 serve a riconoscere il ciclo tipico di una tempesta, con lo svuotamento \
 iniziale e la ricarica nei giorni successivi.\n\n\
-I buchi nella curva sono i periodi in cui l'app era chiusa.\n\n\
+I buchi nella curva sono i periodi in cui l'app era chiusa; con lo storico \
+remoto attivo (scheda Sorgenti) vengono riempiti da soli.\n\n\
 **Misura** (campionata dall'app).",
 
             Self::HistKp => "\
@@ -466,7 +467,12 @@ Ascolta solo su 127.0.0.1: non è raggiungibile dalla rete. Vive dentro l'app \
 e si spegne chiudendo la finestra.\n\n\
 Lo **storico** è il file indicato sotto: contiene un punto per ogni \
 aggiornamento ed è ciò che alimenta la scheda Storico. Si può cancellare per \
-ripartire da zero.",
+ripartire da zero.\n\n\
+Lo **storico remoto** è facoltativo: un piccolo servizio su Cloudflare che \
+registra le stesse misure ogni 5 minuti anche quando l'app è chiusa. Se è \
+configurato, l'app scarica i punti mancanti all'avvio e poi ogni mezz'ora, e \
+ricalcola da quelle misure magnetopausa e forma delle fasce. La riga è verde \
+se l'ultimo scaricamento è riuscito, rossa se è fallito.",
         }
     }
 }

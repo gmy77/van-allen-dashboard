@@ -11,6 +11,7 @@
 //!
 //! Variabili d'ambiente (tutte facoltative):
 //! * `VANALLEN_PORT`    porta del server locale (predefinita 8787);
+//! * `VANALLEN_REMOTE`  indirizzo del Worker dello storico (vedi `worker/`);
 //! * `VANALLEN_PRELOAD` scarica i dati prima di aprire la finestra;
 //! * `VANALLEN_TAB`     scheda iniziale: fasce, vento, magnetosfera, storico, sorgenti;
 //! * `VANALLEN_HELP`    apre subito l'aiuto numero N (ordine di `Topic::ALL`);
@@ -76,6 +77,62 @@ impl Tab {
     }
 }
 
+/// Storico remoto: il Worker che registra anche ad app chiusa.
+pub(crate) struct Remote {
+    /// indirizzo configurato, se c'è
+    pub url: Option<String>,
+    rx: Option<Receiver<Result<Vec<HistoryPoint>, String>>>,
+    /// punti nuovi aggiunti allo storico in questa sessione
+    pub added: usize,
+    /// ultimo scaricamento riuscito (epoch) e numero di punti ricevuti
+    pub last_ok: Option<(i64, usize)>,
+    pub error: Option<String>,
+}
+
+impl Remote {
+    /// Legge l'indirizzo da `VANALLEN_REMOTE` o da `remote.txt` accanto allo
+    /// storico; se c'è, avvia il thread che scarica.
+    fn start() -> Self {
+        let url = std::env::var("VANALLEN_REMOTE")
+            .ok()
+            .or_else(|| std::fs::read_to_string(History::remote_file()).ok())
+            .and_then(|raw| vanallen_core::remote::clean_url(&raw));
+        let rx = url.clone().map(spawn_remote);
+        Self {
+            url,
+            rx,
+            added: 0,
+            last_ok: None,
+            error: None,
+        }
+    }
+}
+
+/// Scarica lo storico remoto: 30 giorni all'avvio, poi le ultime 3 ore ogni
+/// mezz'ora (i doppioni li scarta `History::merge`).
+fn spawn_remote(url: String) -> Receiver<Result<Vec<HistoryPoint>, String>> {
+    let (tx, rx) = channel();
+    std::thread::spawn(move || {
+        let http = Http::new(40);
+        let mut window = 30 * 86_400;
+        loop {
+            let since = vanallen_core::time::now_unix() - window;
+            let result = http
+                .json(&format!("{url}/history?since={since}"))
+                .and_then(|v| vanallen_core::remote::parse_history(&v))
+                .map(|m| m.iter().map(|x| x.to_point()).collect::<Vec<_>>());
+            if result.is_ok() {
+                window = 3 * 3600;
+            }
+            if tx.send(result).is_err() {
+                return; // finestra chiusa
+            }
+            std::thread::sleep(Duration::from_secs(1800));
+        }
+    });
+    rx
+}
+
 /// Screenshot automatico (variabile `VANALLEN_SHOT`).
 struct Shot {
     path: std::path::PathBuf,
@@ -103,6 +160,7 @@ struct VanAllenApp {
     tab: Tab,
     hist_range: pages::HistRange,
     shot: Option<Shot>,
+    remote: Remote,
 }
 
 impl VanAllenApp {
@@ -139,6 +197,7 @@ impl VanAllenApp {
                 .and_then(|n| Tab::from_name(&n))
                 .unwrap_or(Tab::Belts),
             hist_range: pages::HistRange::All,
+            remote: Remote::start(),
             shot: std::env::var_os("VANALLEN_SHOT").map(|p| Shot {
                 path: p.into(),
                 frames: 0,
@@ -189,6 +248,26 @@ impl VanAllenApp {
         }
         if let Some(snap) = latest {
             self.ingest(snap);
+        }
+
+        // storico remoto: unisce i punti arrivati e salva
+        let arrived: Vec<_> = match &self.remote.rx {
+            Some(rx) => std::iter::from_fn(|| rx.try_recv().ok()).collect(),
+            None => Vec::new(),
+        };
+        for result in arrived {
+            match result {
+                Ok(points) => {
+                    let n = points.len();
+                    self.remote.added += self.history.merge(points);
+                    self.remote.last_ok = Some((vanallen_core::time::now_unix(), n));
+                    self.remote.error = None;
+                    if let Err(e) = self.history.save() {
+                        eprintln!("storico non salvato: {e}");
+                    }
+                }
+                Err(e) => self.remote.error = Some(e),
+            }
         }
     }
 }

@@ -2,3 +2,5 @@
 /dist
 **/*.rs.bk
 *.pdb
+.wrangler/
+node_modules/

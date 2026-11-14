@@ -14,6 +14,7 @@
 pub mod history;
 pub mod http;
 pub mod physics;
+pub mod remote;
 pub mod snapshot;
 pub mod sources;
 pub mod time;

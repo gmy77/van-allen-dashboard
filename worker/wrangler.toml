@@ -1,0 +1,24 @@
+name = "van-allen-history"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+# Archivio delle misure. Il database si crea una volta sola con
+#   wrangler d1 create van-allen-history
+# e l'identificativo che il comando stampa va copiato qui sotto.
+[[d1_databases]]
+binding = "DB"
+database_name = "van-allen-history"
+database_id = "DA-COMPILARE-DOPO-wrangler-d1-create"
+
+# Un punto ogni 5 minuti, come l'app.
+[triggers]
+crons = ["*/5 * * * *"]
+
+# Leggere i due file del vento solare (24 ore al minuto, più sonde) costa
+# qualche decina di millisecondi di CPU: oltre il limite del piano Free.
+# Serve Workers Paid.
+[limits]
+cpu_ms = 2000
+
+[observability]
+enabled = true

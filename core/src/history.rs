@@ -73,6 +73,39 @@ impl History {
         }
     }
 
+    /// File accanto allo storico con l'indirizzo del Worker (facoltativo).
+    pub fn remote_file() -> PathBuf {
+        Self::path().with_file_name("remote.txt")
+    }
+
+    /// Unisce punti arrivati da fuori (lo storico remoto) a quelli locali.
+    ///
+    /// Il risultato resta ordinato nel tempo e senza doppioni ravvicinati: fra
+    /// due punti a meno di 150 secondi si tiene il primo. Restituisce quanti
+    /// punti in più ci sono dopo l'unione.
+    pub fn merge(&mut self, incoming: Vec<HistoryPoint>) -> usize {
+        if incoming.is_empty() {
+            return 0;
+        }
+        let before = self.points.len();
+        let mut all = std::mem::take(&mut self.points);
+        all.extend(incoming);
+        all.sort_by_key(|p| p.t); // stabile: a parità di tempo vince il locale
+        let mut out: Vec<HistoryPoint> = Vec::with_capacity(all.len());
+        for p in all {
+            match out.last() {
+                Some(last) if p.t - last.t < 150 => {}
+                _ => out.push(p),
+            }
+        }
+        if out.len() > MAX_POINTS {
+            let drop = out.len() - MAX_POINTS;
+            out.drain(0..drop);
+        }
+        self.points = out;
+        self.points.len().saturating_sub(before)
+    }
+
     /// Punti delle ultime `hours` ore.
     pub fn window(&self, since: i64) -> &[HistoryPoint] {
         let start = self.points.partition_point(|p| p.t < since);
@@ -83,6 +116,45 @@ impl History {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn at(t: i64, flux: f64) -> HistoryPoint {
+        HistoryPoint {
+            t,
+            flux2: Some(flux),
+            kp: None,
+            dst: None,
+            r_mp: None,
+            l_peak: None,
+            l_outer: None,
+            content: None,
+        }
+    }
+
+    #[test]
+    fn merge_fills_gaps_without_duplicates() {
+        let mut h = History::default();
+        h.push(at(1000, 1.0));
+        h.push(at(1300, 2.0));
+        h.push(at(5000, 3.0));
+        // remoto: un doppione esatto, uno ravvicinato, tre nel buco, uno prima
+        let added = h.merge(vec![
+            at(400, 9.0),
+            at(1000, 9.0),
+            at(1360, 9.0),
+            at(1600, 9.0),
+            at(1900, 9.0),
+            at(2200, 9.0),
+        ]);
+        assert_eq!(added, 4);
+        let ts: Vec<i64> = h.points.iter().map(|p| p.t).collect();
+        assert_eq!(ts, vec![400, 1000, 1300, 1600, 1900, 2200, 5000]);
+        // a parità di tempo resta il punto locale
+        assert_eq!(h.points[1].flux2, Some(1.0));
+        // ripetere la stessa unione non cambia nulla
+        assert_eq!(h.merge(vec![at(1600, 7.0), at(1900, 7.0)]), 0);
+        assert_eq!(h.points.len(), 7);
+        assert_eq!(h.merge(Vec::new()), 0);
+    }
 
     #[test]
     fn push_replaces_within_a_minute() {
